@@ -21,47 +21,50 @@ const Editorpage = () => {
 
   useEffect(() => {
     const init = async () => {
-        socketRef.current = await initSocket();
-        socketRef.current.on('connect_error', (err) => handleErrors(err));
-        socketRef.current.on('connect_failed', (err) => handleErrors(err));
+      socketRef.current = await initSocket();
+      socketRef.current.on("connect_error", (err) => handleErrors(err));
+      socketRef.current.on("connect_failed", (err) => handleErrors(err));
 
-        function handleErrors(e) {
-            console.log('socket error', e);
-            toast.error('Socket connection failed, try again later.');
-            reactNavigator('/');
+      function handleErrors(e) {
+        console.log("socket error", e);
+        toast.error("Socket connection failed, try again later.");
+        reactNavigator("/");
+      }
+
+      socketRef.current.emit(ACTIONS.JOIN, {
+        roomId,
+        username: location.state?.username,
+      });
+
+      // Listening for joined event
+      socketRef.current.on(
+        ACTIONS.JOINED,
+        ({ clients, username, socketId }) => {
+          if (username !== location.state?.username) {
+            toast.success(`${username} joined the room.`);
+            console.log(`${username} joined`);
+          }
+          setClients(clients);
+          socketRef.current.emit(ACTIONS.SYNC_CODE, {
+            code: codeRef.current,
+            socketId,
+          });
         }
+      );
 
-        socketRef.current.emit(ACTIONS.JOIN, {
-            roomId,
-            username: location.state?.username,
-        });
-
-        // Listening for joined event
-        socketRef.current.on(
-            ACTIONS.JOINED,
-            ({ clients, username, socketId }) => {
-                if (username !== location.state?.username) {
-                    toast.success(`${username} joined the room.`);
-                    console.log(`${username} joined`);
-                }
-                setClients(clients);
-                socketRef.current.emit(ACTIONS.SYNC_CODE, {
-                    code: codeRef.current,
-                    socketId,
-                });
-            }
-        );
-
-        // Listening for disconnected
+      // Listening for disconnected
     };
     init();
     return () => {
-        socketRef.current.disconnect();
-        socketRef.current.off(ACTIONS.JOINED);
-        socketRef.current.off(ACTIONS.DISCONNECTED);
+      socketRef.current.disconnect();
+      socketRef.current.off(ACTIONS.JOINED);
+      socketRef.current.off(ACTIONS.DISCONNECTED);
     };
-}, []);
+  }, []);
 
+  if (!location.state) {
+    return <Navigate to="/" />;
+  }
 
   return (
     <div className="mainWrap">
@@ -77,14 +80,18 @@ const Editorpage = () => {
             ))}
           </div>
         </div>
-        <button className="btn copyBtn">
-          Copy ROOM ID
-        </button>
-        <button className="btn leaveBtn">
-          Leave
-        </button>
+        <button className="btn copyBtn">Copy ROOM ID</button>
+        <button className="btn leaveBtn">Leave</button>
       </div>
-      <div className="editorWrap"></div>
+      <div className="editorWrap">
+        <Editor
+          socketRef={socketRef}
+          roomId={roomId}
+          onCodeChange={(code) => {
+            codeRef.current = code;
+          }}
+        />
+      </div>
     </div>
   );
 };
